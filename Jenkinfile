@@ -1,0 +1,76 @@
+pipeline {
+    agent any
+
+    environment {
+      
+        IMAGE_TAG         = "v${BUILD_NUMBER}"
+        DOCKERHUB_CREDS   = 'dockerhub-credentials-id'
+        DOCKERHUB_USER    = 'YOUR_DOCKERHUB_USERNAME'  
+    }
+
+    stages {
+        
+        stage('Checkout Source') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Continuous Integration (Testing)') {
+            steps {
+                sh '''
+                    python3 -m venv venv
+                    . venv/bin/activate
+                    pip install --upgrade pip
+                    pip install -r requirements.txt
+                    python3 -m pytest
+                '''
+            }
+        }
+
+   
+        stage('Build & Push Container') {
+            steps {
+                script {
+           
+                    withCredentials([usernamePassword(credentialsId: "${DOCKERHUB_CREDS}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                        sh "echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin"
+                        sh "docker build -t ${DOCKERHUB_USER}/calculator-app:${IMAGE_TAG} ."
+                        sh "docker push ${DOCKERHUB_USER}/calculator-app:${IMAGE_TAG}"
+                    }
+                }
+            }
+        }
+
+  
+        stage('Kubernetes Deployment') {
+            steps {
+                sh """
+                    
+                    curl -Lo ./kind https://k8s.io
+                    chmod +x ./kind
+                    ./kind create cluster --name jenkins-pipeline-cluster || true
+                    
+                
+                    sed -i 's/__IMAGE_TAG__/${IMAGE_TAG}/g' deployment.yaml
+                    sed -i 's/DOCKERHUB_USERNAME/${DOCKERHUB_USER}/g' deployment.yaml
+                    
+                    
+                    kubectl apply -f deployment.yaml
+                    kubectl apply -f service.yaml
+                    
+                    
+                    kubectl get deployments
+                    kubectl get pods
+                    kubectl get service calculator-service
+                """
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+        }
+    }
+}
