@@ -9,7 +9,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-
     - name: Checkout Code
       uses: actions/checkout@v4
 
@@ -27,7 +26,6 @@ jobs:
       run: |
         python -m pytest
 
-
     - name: Log in to Docker Hub
       uses: docker/login-action@v3
       with:
@@ -41,12 +39,23 @@ jobs:
         push: true
         tags: ${{ secrets.DOCKERHUB_USERNAME }}/calculator-app:v${{ github.run_number }}
 
+    - name: Create Local KinD Kubernetes Cluster
+      uses: engineerd/setup-kind@v0.5.0
+      with:
+        version: "v0.11.1"
+
     - name: Update Kubernetes Manifest with Unique Tag
       run: |
         sed -i 's/__IMAGE_TAG__/v'${{ github.run_number }}'/g' deployment.yaml
         sed -i 's/DOCKERHUB_USERNAME/'${{ secrets.DOCKERHUB_USERNAME }}'/g' deployment.yaml
 
-    - name: Output Deployment Manifest Verification
+    - name: Deploy to Kubernetes Cluster via Kubectl
       run: |
-        echo "Successfully verified deployment files for tag: v${{ github.run_number }}"
-        cat deployment.yaml
+        kubectl apply -f deployment.yaml
+        kubectl apply -f service.yaml
+
+    - name: Verify Live Deployment Status
+      run: |
+        kubectl get deployments
+        kubectl get pods
+        kubectl get service calculator-service
