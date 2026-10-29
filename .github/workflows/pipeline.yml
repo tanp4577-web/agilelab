@@ -9,9 +9,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
     - name: Checkout Code
       uses: actions/checkout@v4
 
+    
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
@@ -24,12 +26,13 @@ jobs:
 
     - name: Run Automated Tests
       run: |
-        python -m pytest
+        PYTHONPATH=. python -m pytest
 
+    
     - name: Log in to Docker Hub
       uses: docker/login-action@v3
       with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        username: tanp77
         password: ${{ secrets.DOCKERHUB_TOKEN }}
 
     - name: Build and Push Docker Image
@@ -37,25 +40,11 @@ jobs:
       with:
         context: .
         push: true
-        tags: ${{ secrets.DOCKERHUB_USERNAME }}/calculator-app:v${{ github.run_number }}
+        tags: tanp77/calculator-app:v${{ github.run_number }}
 
-    - name: Create Local KinD Kubernetes Cluster
-      uses: engineerd/setup-kind@v0.5.0
-      with:
-        version: "v0.11.1"
-
-    - name: Update Kubernetes Manifest with Unique Tag
+    
+    - name: Run Web Container Simulation
       run: |
-        sed -i 's/__IMAGE_TAG__/v'${{ github.run_number }}'/g' deployment.yaml
-        sed -i 's/DOCKERHUB_USERNAME/'${{ secrets.DOCKERHUB_USERNAME }}'/g' deployment.yaml
-
-    - name: Deploy to Kubernetes Cluster via Kubectl
-      run: |
-        kubectl apply -f deployment.yaml
-        kubectl apply -f service.yaml
-
-    - name: Verify Live Deployment Status
-      run: |
-        kubectl get deployments
-        kubectl get pods
-        kubectl get service calculator-service
+        docker rm -f calculator-local-run || true
+        docker run -d -p 8080:80 --name calculator-local-run tanp77/calculator-app:v${{ github.run_number }}
+        echo "Successfully deployed version v${{ github.run_number }} onto localhost port 8080"

@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: calculator
-        image: tanp77/calculator-app:__IMAGE_TAG__
+        image: DOCKERHUB_USERNAME/calculator-app:__IMAGE_TAG__
         ports:
         - containerPort: 80
         stdin: true

@@ -2,10 +2,9 @@ pipeline {
     agent any
 
     environment {
-      
         IMAGE_TAG         = "v${BUILD_NUMBER}"
         DOCKERHUB_CREDS   = 'dockerhub-credentials-id'
-        DOCKERHUB_USER    = 'YOUR_DOCKERHUB_USERNAME'  
+        DOCKERHUB_USER    = 'tanp77'
     }
 
     stages {
@@ -23,16 +22,15 @@ pipeline {
                     . venv/bin/activate
                     pip install --upgrade pip
                     pip install -r requirements.txt
-                    python3 -m pytest
+                    PYTHONPATH=. python3 -m pytest
                 '''
             }
         }
 
-   
+
         stage('Build & Push Container') {
             steps {
                 script {
-           
                     withCredentials([usernamePassword(credentialsId: "${DOCKERHUB_CREDS}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                         sh "echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin"
                         sh "docker build -t ${DOCKERHUB_USER}/calculator-app:${IMAGE_TAG} ."
@@ -42,27 +40,13 @@ pipeline {
             }
         }
 
-  
-        stage('Kubernetes Deployment') {
+        
+        stage('Local Port Expose Deployment') {
             steps {
                 sh """
-                    
-                    curl -Lo ./kind https://k8s.io
-                    chmod +x ./kind
-                    ./kind create cluster --name jenkins-pipeline-cluster || true
-                    
-                
-                    sed -i 's/__IMAGE_TAG__/${IMAGE_TAG}/g' deployment.yaml
-                    sed -i 's/DOCKERHUB_USERNAME/${DOCKERHUB_USER}/g' deployment.yaml
-                    
-                    
-                    kubectl apply -f deployment.yaml
-                    kubectl apply -f service.yaml
-                    
-                    
-                    kubectl get deployments
-                    kubectl get pods
-                    kubectl get service calculator-service
+                    docker rm -f calculator-local-run || true
+                    docker run -d -p 8080:80 --name calculator-local-run ${DOCKERHUB_USER}/calculator-app:${IMAGE_TAG}
+                    echo "Application successfully running on http://localhost:8080"
                 """
             }
         }
